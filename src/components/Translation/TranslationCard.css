@@ -1,0 +1,152 @@
+/* src/components/Translation/TranslationCard.css */
+.translation-container {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.translation-card {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.card-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+  color: #1f2937;
+}
+
+.translation-grid {
+  display: grid;
+  gap: 1.5rem;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 10px;
+}
+
+@media (min-width: 768px) {
+  .translation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.input-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.text-input,
+.result-area {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.75rem 0.75rem 10px 0.75rem;
+  padding-bottom: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  height: 200px;
+  transition: all 0.2s;
+  resize: none;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.result-area {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  min-height: 200px;
+  background-color: #f9fafb;
+  overflow-y: auto;
+}
+
+.result-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9ca3af;
+}
+
+.translate-button {
+  width: 100%;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s;
+}
+
+.translate-button:hover:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+.translate-button:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.error-message {
+  margin-top: 0.5rem;
+  color: #ef4444;
+  font-size: 0.875rem;
+}
+
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 0;
+}
+
+.loading-text {
+  color: #2563eb;
+  font-size: 1.5rem;
+}
+
+.error-container {
+  color: #ef4444;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background-color: #fef2f2;
+  text-align: center;
+}

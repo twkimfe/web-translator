@@ -11,6 +11,7 @@ const fetchWrapper = async (endpoint, options = {}) => {
         ...options.headers,
       },
     });
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
       throw new Error(
@@ -38,9 +39,17 @@ const api = {
     });
   },
 
-  // 번역 히스토리 관련
-  getTranslations: () => {
+  // 새로 추가: 번역 기록 저장
+  addTranslation: (translationData) => {
     return fetchWrapper("/translations", {
+      method: "POST",
+      body: JSON.stringify(translationData),
+    });
+  },
+
+  // 번역 히스토리 관련
+  getTranslations: (page = 1, limit = 5) => {
+    return fetchWrapper(`/translations?page=${page}&limit=${limit}`, {
       method: "GET",
     });
   },
@@ -48,6 +57,14 @@ const api = {
   toggleFavorite: (id) => {
     return fetchWrapper(`/translations/${id}/favorite`, {
       method: "PATCH",
+    });
+  },
+
+  // 삭제 기능 추가
+  deleteTranslations: (ids) => {
+    return fetchWrapper("/translations", {
+      method: "DELETE",
+      body: JSON.stringify({ ids }),
     });
   },
 };

@@ -1,9 +1,10 @@
 // src/components/Translation/TranslationCard.js
 import React, { useState } from "react";
-import { Card } from "../ui/card";
 import { useTranslation } from "../../hooks/useTranslation";
 import { useTranslationHistory } from "../../hooks/useTranslationHistory";
-import { Star, StarOff } from "lucide-react";
+import TranslationHistory from "./TranslationHistory";
+import { ArrowDown } from "lucide-react";
+import "./TranslationCard.css";
 
 const TranslationCard = () => {
   const [inputText, setInputText] = useState("");
@@ -13,12 +14,16 @@ const TranslationCard = () => {
     history,
     loading: historyLoading,
     error: historyError,
+    currentPage,
+    totalPages,
+    selectedIds,
     toggleFavorite,
+    handlePageChange,
+    deleteSelected,
   } = useTranslationHistory();
 
   const handleTranslate = async () => {
     if (!inputText.trim()) return;
-
     try {
       const result = await translate(inputText);
       setTranslatedText(result);
@@ -27,80 +32,77 @@ const TranslationCard = () => {
     }
   };
 
-  const handleFavoriteToggle = async (id) => {
-    await toggleFavorite(id);
-  };
-
   return (
-    <div className="space-y-4">
-      <Card className="p-4">
-        <div className="space-y-4">
-          <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder="번역할 텍스트를 입력하세요"
-            className="w-full p-2 border rounded-md"
-            rows={4}
-          />
+    <div className="translation-container">
+      <div className="translation-card">
+        <div className="translation-grid">
+          <div className="input-group">
+            <label className="input-label">한국어</label>
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              placeholder="번역할 텍스트를 입력하세요"
+              className="text-input"
+              rows={4}
+            />
+          </div>
+
           <button
             onClick={handleTranslate}
-            disabled={translating}
-            className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600 disabled:bg-gray-400"
+            disabled={translating || !inputText.trim()}
+            className="translate-button"
           >
-            {translating ? "번역 중..." : "번역하기"}
+            {translating ? (
+              <>
+                <span className="loading-spinner">◌</span>
+                번역 중...
+              </>
+            ) : (
+              <>
+                <ArrowDown />
+              </>
+            )}
           </button>
 
-          {translationError && (
-            <p className="text-red-500">{translationError}</p>
-          )}
-
-          {translatedText && (
-            <div className="p-3 bg-gray-50 rounded-md">
-              <p className="font-medium">{translatedText}</p>
+          <div className="input-group">
+            <label className="input-label">중국어</label>
+            <div
+              className={`result-area ${
+                !translatedText ? "result-placeholder" : ""
+              }`}
+            >
+              {translatedText ? (
+                <p>{translatedText}</p>
+              ) : (
+                <p>번역 결과가 여기에 표시됩니다</p>
+              )}
             </div>
-          )}
-        </div>
-      </Card>
-
-      {/* 번역 히스토리 섹션 */}
-      <Card className="p-4">
-        <h2 className="text-xl font-bold mb-4">번역 히스토리</h2>
-        {historyLoading ? (
-          <p>로딩 중...</p>
-        ) : historyError ? (
-          <p className="text-red-500">{historyError}</p>
-        ) : (
-          <div className="space-y-2">
-            {history.map((item) => (
-              <div
-                key={item._id}
-                className="flex justify-between items-start p-2 border-b"
-              >
-                <div className="flex-1">
-                  <p className="text-sm text-gray-600">{item.sourceText}</p>
-                  <p className="font-medium">{item.translatedText}</p>
-                  <p className="text-xs text-gray-400">
-                    {new Date(item.createdAt).toLocaleString()}
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleFavoriteToggle(item._id)}
-                  className="ml-2 p-1 hover:bg-gray-100 rounded"
-                >
-                  {item.isFavorite ? (
-                    <Star className="w-5 h-5 text-yellow-500" />
-                  ) : (
-                    <StarOff className="w-5 h-5 text-gray-400" />
-                  )}
-                </button>
-              </div>
-            ))}
           </div>
+        </div>
+        {translationError && (
+          <p className="error-message">{translationError}</p>
         )}
-      </Card>
+      </div>
+
+      <div className="translation-card">
+        <h2 className="card-title">번역 기록</h2>
+        {historyLoading ? (
+          <div className="loading-container">
+            <div className="loading-spinner loading-text">◌</div>
+          </div>
+        ) : historyError ? (
+          <div className="error-container">{historyError}</div>
+        ) : (
+          <TranslationHistory
+            translations={history}
+            currentPage={currentPage}
+            onPageChange={handlePageChange}
+            onBulkDelete={deleteSelected}
+          />
+        )}
+      </div>
     </div>
   );
 };
 
-// default export로 변경
 export default TranslationCard;
