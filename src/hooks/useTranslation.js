@@ -1,57 +1,30 @@
 // src/hooks/useTranslation.js
+import { useState } from "react";
+import { api } from "../utils/api";
 
-import { useState, useCallback } from "react";
-import { translateAPI } from "../utils/api";
-
-const useTranslation = () => {
-  const [text, setText] = useState("");
-  const [translatedText, setTranslatedText] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+export const useTranslation = () => {
+  const [translating, setTranslating] = useState(false);
   const [error, setError] = useState(null);
 
-  // 번역 텍스트 입력 핸들러
-  const handleTextChange = useCallback((newText) => {
-    setText(newText);
-    setError(null);
-  }, []);
-
-  // 번역 실행 함수
-  const translate = useCallback(async () => {
-    if (!text.trim()) {
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
+  const translate = async (text, sourceLang = "ko", targetLang = "zh") => {
     try {
-      const response = await translateAPI.translate(text);
-      const result = response.data.translations[0].translatedText;
-      setTranslatedText(result);
-    } catch (err) {
-      setError("번역 중 오류가 발생했습니다. 다시 시도해주세요.");
-      console.error("Translation error:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [text]);
+      setTranslating(true);
+      setError(null);
 
-  // 상태 초기화
-  const reset = useCallback(() => {
-    setText("");
-    setTranslatedText("");
-    setError(null);
-  }, []);
+      const response = await api.translate(text, sourceLang, targetLang);
+      return response.data.translations[0].translatedText;
+    } catch (err) {
+      setError("번역 실패");
+      console.error("Translation error:", err);
+      throw err;
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   return {
-    text,
-    translatedText,
-    isLoading,
-    error,
-    handleTextChange,
     translate,
-    reset,
+    translating,
+    error,
   };
 };
-
-export default useTranslation;
