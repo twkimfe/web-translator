@@ -1,11 +1,15 @@
 /* src/components/Translation/TranslationCard.css */
 .translation-container {
-  max-width: 1024px;
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
   margin: 0 auto;
   padding: 1rem;
 }
 
 .translation-card {
+  display: flex;
+  flex-direction: column;
   background-color: white;
   border-radius: 12px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -14,25 +18,20 @@
 }
 
 .card-title {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   font-weight: bold;
   margin-bottom: 1.5rem;
   color: #1f2937;
 }
 
 .translation-grid {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
   height: 100%;
   width: 100%;
   box-sizing: border-box;
   padding: 0 10px;
-}
-
-@media (min-width: 768px) {
-  .translation-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .input-group {

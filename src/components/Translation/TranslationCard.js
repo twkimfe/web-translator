@@ -15,18 +15,28 @@ const TranslationCard = () => {
     loading: historyLoading,
     error: historyError,
     currentPage,
-    totalPages,
-    selectedIds,
-    toggleFavorite,
     handlePageChange,
     deleteSelected,
+    addTranslation,
   } = useTranslationHistory();
 
   const handleTranslate = async () => {
     if (!inputText.trim()) return;
     try {
+      console.log("번역 요청:", inputText);
       const result = await translate(inputText);
+      console.log("번역 결과:", result);
       setTranslatedText(result);
+
+      // 번역 결과를 히스토리에 추가
+      if (result) {
+        await addTranslation({
+          sourceText: inputText,
+          translatedText: result,
+          sourceLang: "ko",
+          targetLang: "zh",
+        });
+      }
     } catch (err) {
       console.error("Translation failed:", err);
     }
@@ -85,7 +95,7 @@ const TranslationCard = () => {
       </div>
 
       <div className="translation-card">
-        <h2 className="card-title">번역 기록</h2>
+        <h3 className="card-title">기록</h3>
         {historyLoading ? (
           <div className="loading-container">
             <div className="loading-spinner loading-text">◌</div>

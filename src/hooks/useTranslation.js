@@ -10,9 +10,9 @@ export const useTranslation = () => {
     try {
       setTranslating(true);
       setError(null);
-
-      const response = await api.translate(text, sourceLang, targetLang);
-      return response.data.translations[0].translatedText;
+      const translatedText = await api.translate(text, sourceLang, targetLang);
+      // data.data.translatedText 대신 직접 translatedText 사용
+      return translatedText;
     } catch (err) {
       setError("번역 실패");
       console.error("Translation error:", err);
@@ -21,7 +21,6 @@ export const useTranslation = () => {
       setTranslating(false);
     }
   };
-
   return {
     translate,
     translating,

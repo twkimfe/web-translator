@@ -98,10 +98,13 @@ export const useTranslationHistory = () => {
       setLoading(false);
     }
   };
-
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    const loadInitialHistory = () => {
+      fetchHistory();
+    };
+
+    loadInitialHistory();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     history,
@@ -111,7 +114,7 @@ export const useTranslationHistory = () => {
     totalPages,
     selectedIds,
     addTranslation,
-    fetchHistory,
+    refreshHistory: fetchHistory,
     toggleFavorite,
     handlePageChange,
     toggleSelection,
