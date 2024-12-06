@@ -1,41 +1,48 @@
 const express = require("express");
 const router = express.Router();
 const Translation = require("../models/Translation");
+const translationService = require("../services/translationService");
 
 // 상수 정의
 const DEFAULT_PAGE_SIZE = 5;
 const DEFAULT_SOURCE_LANG = "ko";
 const DEFAULT_TARGET_LANG = "zh";
 
-// 공통 에러 처리 함수
-const handleError = (res, error, statusCode = 500) => {
-  console.error("Translation API Error:", error);
-  res.status(statusCode).json({
-    error: error.message,
-    status: "error",
+// 응답 헬퍼 함수들
+const sendResponse = (res, data, status = 200) => {
+  res.status(status).json({
+    status: "success",
+    data,
   });
 };
 
-// GET /api/translations
+const handleError = (res, error, statusCode = 500) => {
+  console.error("Translation Error:", error);
+  res.status(statusCode).json({
+    success: false,
+    message: error.message || "번역 중 오류가 발생했습니다.",
+  });
+};
+
+// GET /api/translations - 번역 기록 조회
 router.get("/", async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page) || 1); // 최소값 1 보장
+    const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, parseInt(req.query.limit) || DEFAULT_PAGE_SIZE);
     const skip = (page - 1) * limit;
+
     const [total, translations] = await Promise.all([
       Translation.countDocuments(),
-      Translation.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(), // 성능 최적화
+      Translation.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
     ]);
-    res.json({
-      status: "success",
-      data: {
-        translations,
-        pagination: {
-          current: page,
-          pages: Math.ceil(total / limit),
-          total,
-          pageSize: limit,
-        },
+
+    sendResponse(res, {
+      translations,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
     });
   } catch (error) {
@@ -43,105 +50,109 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /api/translations/translate
+// POST /api/translations/translate - 번역 수행 및 저장
 router.post("/translate", async (req, res) => {
-  console.log("번역 요청 받음:", req.body); // 요청 로깅
+  console.log("번역 요청 받음:", req.body);
   try {
     const { text, sourceLang, targetLang } = req.body;
 
-    // 여기에 실제 번역 로직 구현
-    const translatedText = text; // 임시로 원본 텍스트를 반환
+    if (!text) {
+      return handleError(res, new Error("번역할 텍스트가 필요합니다."), 400);
+    }
 
-    // 번역 결과 저장
-    const translation = new Translation({
+    // 번역 서비스를 통한 번역 수행
+    const translation = await translationService.translate(
+      text,
+      sourceLang || DEFAULT_SOURCE_LANG,
+      targetLang || DEFAULT_TARGET_LANG
+    );
+
+    // 품질 체크
+    const qualityCheck = await translationService.checkTranslationQuality(
+      text,
+      translation.translatedText,
+      sourceLang || DEFAULT_SOURCE_LANG,
+      targetLang || DEFAULT_TARGET_LANG
+    );
+
+    // DB에 저장
+    const translationDoc = new Translation({
       sourceText: text,
-      translatedText,
+      translatedText: translation.translatedText,
       sourceLang: sourceLang || DEFAULT_SOURCE_LANG,
       targetLang: targetLang || DEFAULT_TARGET_LANG,
+      matchScore: translation.match,
+      qualityScore: qualityCheck.qualityScore,
+      createdAt: new Date(),
     });
 
-    await translation.save();
+    await translationDoc.save();
 
-    res.json({
-      status: "success",
-      data: {
-        translatedText,
-      },
+    sendResponse(res, {
+      translation: translationDoc,
+      translatedText: translation.translatedText,
+      qualityCheck,
     });
   } catch (error) {
     handleError(res, error, 400);
   }
 });
 
-// DELETE /api/translations/:id
-router.delete("/:id", async (req, res) => {
+// DELETE /api/translations - 여러 번역 기록 삭제
+router.delete("/", async (req, res) => {
   try {
-    const result = await Translation.findByIdAndDelete(req.params.id);
-    if (!result) {
-      return res.status(404).json({
-        error: "번역 기록을 찾을 수 없습니다",
-        status: "error",
-      });
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return handleError(
+        res,
+        new Error("삭제할 번역 기록 ID를 입력해주세요."),
+        400
+      );
     }
-    res.json({
-      status: "success",
-      data: {
-        message: "번역 기록이 삭제되었습니다.",
-        deletedId: req.params.id,
-      },
+
+    const result = await Translation.deleteMany({ _id: { $in: ids } });
+
+    sendResponse(res, {
+      message: `${result.deletedCount}개의 번역 기록이 삭제되었습니다.`,
+      deletedCount: result.deletedCount,
     });
   } catch (error) {
     handleError(res, error);
   }
 });
 
-// 번역 기록 저장
-router.post("/translate", async (req, res) => {
-  console.log("번역 요청 받음:", req.body); // 디버깅용 로그 추가
+// DELETE /api/translations/:id - 단일 번역 기록 삭제
+router.delete("/:id", async (req, res) => {
   try {
-    const { sourceText, translatedText, sourceLang, targetLang } = req.body;
-    // 필수 필드 검증
-    if (!sourceText || !translatedText) {
-      return res.status(400).json({
-        error: "원문과 번역문은 필수 입력 항목입니다.",
-        status: "error",
-      });
-    }
-    const translation = new Translation({
-      sourceText,
-      translatedText,
-      sourceLang: sourceLang || DEFAULT_SOURCE_LANG,
-      targetLang: targetLang || DEFAULT_TARGET_LANG,
-    });
-    await translation.save();
+    const result = await Translation.findByIdAndDelete(req.params.id);
 
-    res.json({
-      status: "success",
-      data: {
-        translatedText,
-      },
+    if (!result) {
+      return handleError(res, new Error("번역 기록을 찾을 수 없습니다"), 404);
+    }
+
+    sendResponse(res, {
+      message: "번역 기록이 삭제되었습니다.",
+      deletedId: req.params.id,
     });
   } catch (error) {
-    handleError(res, error, 400);
+    handleError(res, error);
   }
 });
 
-// 즐겨찾기 토글
+// PATCH /api/translations/:id/favorite - 즐겨찾기 토글
 router.patch("/:id/favorite", async (req, res) => {
   try {
     const translation = await Translation.findById(req.params.id);
+
     if (!translation) {
-      return res.status(404).json({
-        error: "번역 기록을 찾을 수 없습니다",
-        status: "error",
-      });
+      return handleError(res, new Error("번역 기록을 찾을 수 없습니다"), 404);
     }
+
     translation.isFavorite = !translation.isFavorite;
     await translation.save();
-    res.json({
-      status: "success",
-      data: translation,
-    });
+
+    sendResponse(res, translation);
   } catch (error) {
     handleError(res, error, 400);
   }
