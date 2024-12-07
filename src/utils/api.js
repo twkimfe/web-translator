@@ -1,5 +1,5 @@
 // src/utils/api.js
-const BASE_URL = "http://localhost:3001/api/translations";
+const BASE_URL = "/api/translations"; // 프록시 사용을 위해 변경
 
 export const api = {
   getTranslations: async (page = 1, limit = 5) => {
@@ -13,7 +13,11 @@ export const api = {
     }
   },
 
-  translate: async (text, sourceLang, targetLang) => {
+  translate: async (text, sourceLang = "ko", targetLang = "zh") => {
+    if (!text?.trim()) {
+      throw new Error("번역할 텍스트가 필요합니다");
+    }
+
     try {
       const response = await fetch(`${BASE_URL}/translate`, {
         method: "POST",
@@ -26,26 +30,41 @@ export const api = {
           targetLang,
         }),
       });
-      if (!response.ok) throw new Error("번역에 실패했습니다.");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "번역에 실패했습니다.");
+      }
+
       const data = await response.json();
       console.log("서버 응답:", data);
       // data.data.translatedText 구조 확인
       return data.data.translatedText; // 서버 응답 구조에 맞게 수정
     } catch (error) {
+      console.error("Translation API Error:", error);
       throw error;
     }
   },
 
   addTranslation: async (translationData) => {
     try {
-      const response = await fetch(BASE_URL, {
+      const response = await fetch(`${BASE_URL}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(translationData),
+        body: JSON.stringify({
+          text: translationData.sourceText, // sourceText -> text로 변경
+          translatedText: translationData.translatedText,
+          sourceLang: translationData.sourceLang,
+          targetLang: translationData.targetLang,
+        }),
       });
-      if (!response.ok) throw new Error("번역 저장에 실패했습니다.");
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "번역 저장에 실패했습니다.");
+      }
+
       const data = await response.json();
       return data.data;
     } catch (error) {

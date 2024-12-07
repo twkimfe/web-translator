@@ -1,161 +1,172 @@
+// routes/translationRoutes.js
 const express = require("express");
 const router = express.Router();
-const Translation = require("../models/Translation");
 const translationService = require("../services/translationService");
+const { asyncHandler, AppError } = require("../middleware/error.middleware");
 
-// 상수 정의
-const DEFAULT_PAGE_SIZE = 5;
-const DEFAULT_SOURCE_LANG = "ko";
-const DEFAULT_TARGET_LANG = "zh";
-
-// 응답 헬퍼 함수들
-const sendResponse = (res, data, status = 200) => {
-  res.status(status).json({
-    status: "success",
-    data,
-  });
-};
-
-const handleError = (res, error, statusCode = 500) => {
-  console.error("Translation Error:", error);
-  res.status(statusCode).json({
-    success: false,
-    message: error.message || "번역 중 오류가 발생했습니다.",
-  });
-};
-
-// GET /api/translations - 번역 기록 조회
-router.get("/", async (req, res) => {
-  try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = Math.max(1, parseInt(req.query.limit) || DEFAULT_PAGE_SIZE);
-    const skip = (page - 1) * limit;
-
-    const [total, translations] = await Promise.all([
-      Translation.countDocuments(),
-      Translation.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-    ]);
-
-    sendResponse(res, {
-      translations,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
-  } catch (error) {
-    handleError(res, error);
-  }
+// 응답 래퍼 유틸리티
+const wrapResponse = (data) => ({
+  success: true,
+  data,
+  timestamp: new Date().toISOString(),
 });
 
-// POST /api/translations/translate - 번역 수행 및 저장
-router.post("/translate", async (req, res) => {
-  console.log("번역 요청 받음:", req.body);
-  try {
-    const { text, sourceLang, targetLang } = req.body;
+// 유효성 검증 미들웨어
+const validateTranslationRequest = (req, res, next) => {
+  const { text, sourceLang, targetLang } = req.body;
 
-    if (!text) {
-      return handleError(res, new Error("번역할 텍스트가 필요합니다."), 400);
+  if (!text?.trim()) {
+    throw new AppError("번역할 텍스트가 필요합니다", 400);
+  }
+
+  if (text.length > 5000) {
+    throw new AppError("텍스트가 너무 깁니다 (최대 5000자)", 400);
+  }
+
+  if (sourceLang && !["ko", "zh"].includes(sourceLang)) {
+    throw new AppError("지원하지 않는 원본 언어입니다", 400);
+  }
+
+  if (targetLang && !["ko", "zh"].includes(targetLang)) {
+    throw new AppError("지원하지 않는 대상 언어입니다", 400);
+  }
+
+  next();
+};
+
+// 번역 기록 조회
+router.get(
+  "/",
+  asyncHandler(async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+
+    if (page < 1) throw new AppError("페이지 번호는 1 이상이어야 합니다", 400);
+    if (limit < 1 || limit > 100)
+      throw new AppError("limit는 1에서 100 사이여야 합니다", 400);
+
+    const translations = await translationService.getHistory(page, limit);
+    res.json(wrapResponse(translations));
+  })
+);
+
+// 번역 요청
+router.post(
+  "/translate",
+  validateTranslationRequest,
+  asyncHandler(async (req, res) => {
+    const { text, sourceLang = "ko", targetLang = "zh" } = req.body;
+
+    const result = await translationService.translate(
+      text,
+      sourceLang,
+      targetLang
+    );
+
+    res.json(
+      wrapResponse({
+        translatedText: result.translatedText,
+        sourceText: text,
+        sourceLang,
+        targetLang,
+        matchScore: result.matchScore,
+        qualityScore: result.qualityScore,
+      })
+    );
+  })
+);
+
+// 번역 결과 저장
+router.post(
+  "/",
+  asyncHandler(async (req, res) => {
+    const {
+      text,
+      translatedText,
+      sourceLang = "ko",
+      targetLang = "zh",
+    } = req.body;
+
+    if (!text?.trim() || !translatedText?.trim()) {
+      throw new AppError("원본 텍스트와 번역된 텍스트가 모두 필요합니다", 400);
     }
 
-    // 번역 서비스를 통한 번역 수행
-    const translation = await translationService.translate(
-      text,
-      sourceLang || DEFAULT_SOURCE_LANG,
-      targetLang || DEFAULT_TARGET_LANG
-    );
-
-    // 품질 체크
-    const qualityCheck = await translationService.checkTranslationQuality(
-      text,
-      translation.translatedText,
-      sourceLang || DEFAULT_SOURCE_LANG,
-      targetLang || DEFAULT_TARGET_LANG
-    );
-
-    // DB에 저장
-    const translationDoc = new Translation({
+    const translation = await translationService.saveTranslation({
       sourceText: text,
-      translatedText: translation.translatedText,
-      sourceLang: sourceLang || DEFAULT_SOURCE_LANG,
-      targetLang: targetLang || DEFAULT_TARGET_LANG,
-      matchScore: translation.match,
-      qualityScore: qualityCheck.qualityScore,
-      createdAt: new Date(),
+      translatedText,
+      sourceLang,
+      targetLang,
     });
 
-    await translationDoc.save();
+    res.status(201).json(wrapResponse(translation));
+  })
+);
 
-    sendResponse(res, {
-      translation: translationDoc,
-      translatedText: translation.translatedText,
-      qualityCheck,
-    });
-  } catch (error) {
-    handleError(res, error, 400);
-  }
-});
+// 번역 삭제
+router.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
 
-// DELETE /api/translations - 여러 번역 기록 삭제
-router.delete("/", async (req, res) => {
-  try {
-    const { ids } = req.body;
-
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return handleError(
-        res,
-        new Error("삭제할 번역 기록 ID를 입력해주세요."),
-        400
-      );
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      throw new AppError("유효하지 않은 ID 형식입니다", 400);
     }
 
-    const result = await Translation.deleteMany({ _id: { $in: ids } });
-
-    sendResponse(res, {
-      message: `${result.deletedCount}개의 번역 기록이 삭제되었습니다.`,
-      deletedCount: result.deletedCount,
-    });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
-
-// DELETE /api/translations/:id - 단일 번역 기록 삭제
-router.delete("/:id", async (req, res) => {
-  try {
-    const result = await Translation.findByIdAndDelete(req.params.id);
-
+    const result = await translationService.deleteTranslation(id);
     if (!result) {
-      return handleError(res, new Error("번역 기록을 찾을 수 없습니다"), 404);
+      throw new AppError("삭제할 번역을 찾을 수 없습니다", 404);
     }
 
-    sendResponse(res, {
-      message: "번역 기록이 삭제되었습니다.",
-      deletedId: req.params.id,
-    });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
+    res.json(wrapResponse(result));
+  })
+);
 
-// PATCH /api/translations/:id/favorite - 즐겨찾기 토글
-router.patch("/:id/favorite", async (req, res) => {
-  try {
-    const translation = await Translation.findById(req.params.id);
+// 즐겨찾기 토글
+router.patch(
+  "/:id/favorite",
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
 
-    if (!translation) {
-      return handleError(res, new Error("번역 기록을 찾을 수 없습니다"), 404);
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      throw new AppError("유효하지 않은 ID 형식입니다", 400);
     }
 
-    translation.isFavorite = !translation.isFavorite;
-    await translation.save();
+    const result = await translationService.toggleFavorite(id);
+    if (!result) {
+      throw new AppError("번역을 찾을 수 없습니다", 404);
+    }
 
-    sendResponse(res, translation);
-  } catch (error) {
-    handleError(res, error, 400);
-  }
-});
+    res.json(wrapResponse(result));
+  })
+);
+
+// 번역 통계 조회
+router.get(
+  "/stats",
+  asyncHandler(async (req, res) => {
+    const stats = await translationService.getStats();
+    res.json(wrapResponse(stats));
+  })
+);
+
+// 번역 검색
+router.get(
+  "/search",
+  asyncHandler(async (req, res) => {
+    const { query, page = 1, limit = 5 } = req.query;
+
+    if (!query?.trim()) {
+      throw new AppError("검색어가 필요합니다", 400);
+    }
+
+    const results = await translationService.searchTranslations(
+      query,
+      parseInt(page),
+      parseInt(limit)
+    );
+
+    res.json(wrapResponse(results));
+  })
+);
 
 module.exports = router;

@@ -7,7 +7,7 @@ import { ArrowDown } from "lucide-react";
 import "./TranslationCard.css";
 
 const TranslationCard = () => {
-  const [inputText, setInputText] = useState("");
+  const [inputText, setInputText] = useState("오늘도 힘내보시죠");
   const [translatedText, setTranslatedText] = useState("");
   const { translate, translating, error: translationError } = useTranslation();
   const {
@@ -21,17 +21,19 @@ const TranslationCard = () => {
   } = useTranslationHistory();
 
   const handleTranslate = async () => {
-    if (!inputText.trim()) return;
+    const text = inputText.trim(); // inputText에서 text 변수 추출
+    if (!text) return;
+
     try {
-      console.log("번역 요청:", inputText);
-      const result = await translate(inputText);
+      console.log("번역 요청:", text);
+      const result = await translate(text); // text 전달
       console.log("번역 결과:", result);
       setTranslatedText(result);
 
       // 번역 결과를 히스토리에 추가
       if (result) {
         await addTranslation({
-          sourceText: inputText,
+          sourceText: text,
           translatedText: result,
           sourceLang: "ko",
           targetLang: "zh",

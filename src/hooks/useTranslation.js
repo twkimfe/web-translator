@@ -6,17 +6,17 @@ export const useTranslation = () => {
   const [translating, setTranslating] = useState(false);
   const [error, setError] = useState(null);
 
-  const translate = async (text, sourceLang = "ko", targetLang = "zh") => {
+  const translate = async (text) => {
+    if (!text) {
+      throw new Error("번역할 텍스트가 필요합니다");
+    }
+
     try {
-      setTranslating(true);
-      setError(null);
-      const translatedText = await api.translate(text, sourceLang, targetLang);
-      // data.data.translatedText 대신 직접 translatedText 사용
-      return translatedText;
-    } catch (err) {
-      setError("번역 실패");
-      console.error("Translation error:", err);
-      throw err;
+      const response = await api.translate(text);
+      return response;
+    } catch (error) {
+      console.error("Translation error:", error);
+      throw error;
     } finally {
       setTranslating(false);
     }
